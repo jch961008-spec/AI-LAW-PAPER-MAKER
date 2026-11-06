@@ -1,0 +1,1864 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3천만원 이하 소액사건 이행의 소 소장 자동작성 시스템</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #f1f5f9;
+      color: #0f172a;
+    }
+
+    /* 소장 전용 서체 설정: 신명조 및 휴먼명조 우선 적용, 웹 환경 대체 명조체 폴백 */
+    .font-shinmyeongjo {
+      font-family: "신명조", "ShinMyeongjo", "HCI Poppy", "Nanum Myeongjo", "Noto Serif KR", "Batang", serif;
+      letter-spacing: -0.02em;
+    }
+    .font-humanmyeongjo {
+      font-family: "휴먼명조", "HumanMyeongjo", "Noto Serif KR", "Nanum Myeongjo", "Batang", serif;
+      letter-spacing: -0.01em;
+    }
+
+    /* A4 페이지 규격 (210mm x 297mm) 및 참조 PDF 여백/자간 완벽 재현 */
+    .a4-sheet {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 20mm 18mm 18mm 18mm;
+      margin: 0 auto 24px auto;
+      background: #ffffff;
+      box-sizing: border-box;
+      position: relative;
+      color: #000000;
+      line-height: 1.65;
+      font-size: 11pt;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+    }
+
+    .court-table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    .court-table th, .court-table td {
+      border: 1px solid #000000;
+      padding: 4px 8px;
+      font-size: 10.5pt;
+      vertical-align: middle;
+    }
+
+    .spaced-heading {
+      font-family: "휴먼명조", "HumanMyeongjo", " 신명조", "Noto Serif KR", serif;
+      font-weight: 700;
+      font-size: 13.5pt;
+      letter-spacing: 0.45em;
+      text-align: center;
+      margin: 18px 0 12px 0;
+    }
+
+    .title-heading {
+      font-family: "휴먼명조", "HumanMyeongjo", "신명조", "Noto Serif KR", serif;
+      font-weight: 700;
+      font-size: 20pt;
+      letter-spacing: 1.2em;
+      text-indent: 1.2em;
+      text-align: center;
+    }
+
+    /* 인쇄 및 PDF 출력 최적화 */
+    @media print {
+      body {
+        background: #ffffff !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      #print-area-wrapper {
+        display: block !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+      }
+      .a4-sheet {
+        box-shadow: none !important;
+        margin: 0 !important;
+        width: 210mm !important;
+        height: 297mm !important;
+        page-break-after: always;
+        break-after: page;
+      }
+      .a4-sheet:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+    }
+
+    /* PDF 생성 시 페이지 나눔 제어 */
+    .html2pdf__page-break {
+      page-break-before: always;
+      break-before: page;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- 상단 헤더 (no-print) -->
+  <header class="no-print bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300 font-bold text-lg">
+          ⚖️
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-base sm:text-lg tracking-tight">소액사건(3천만원 이하) 이행의 소 소장 자동작성기</h1>
+            <span class="hidden sm:inline-block text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 font-medium">소액사건심판법 · 민사소송법 준수</span>
+          </div>
+          <p class="text-xs text-slate-400">질문당 1페이지 단계별 문답을 통해 법원 표준양식(신명조·휴먼명조, A4 5면) 소장을 자동 완성합니다</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="btn-reset-all" type="button" class="text-xs px-3 py-1.5 rounded-lg bg-rose-950/80 hover:bg-rose-900 text-rose-200 border border-rose-700/70 transition">
+          🔄 초기화
+        </button>
+        <button id="btn-fill-sample" type="button" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+          예시 데이터 자동입력
+        </button>
+        <button id="btn-toggle-preview-mode" type="button" class="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition">
+          소장 A4 전체화면 미리보기
+        </button>
+        <button id="btn-download-pdf-top" type="button" class="text-xs px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold transition flex items-center gap-1.5">
+          <span>📥</span> PDF 내려받기
+        </button>
+      </div>
+    </div>
+
+    <!-- 12단계 프로그레스 바 -->
+    <div class="bg-slate-950/70 border-t border-slate-800/80">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 py-2">
+        <div class="flex items-center justify-between text-xs text-slate-400 mb-1.5">
+          <span id="step-indicator-label" class="font-semibold text-amber-300">질문 1 / 12 · 원고 인적사항</span>
+          <span id="step-progress-percent">8% 완료</span>
+        </div>
+        <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+          <div id="step-progress-bar" class="h-full bg-gradient-to-r from-amber-500 to-indigo-500 transition-all duration-300" style="width: 8.33%"></div>
+        </div>
+        <!-- 단계 빠른 이동 버튼 (1~12) -->
+        <div id="step-pills-container" class="flex items-center gap-1 overflow-x-auto py-1.5 no-scrollbar"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 메인 작업 공간 -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+    <!-- 좌측: 1페이지 1질문 마법사 카드 (no-print) -->
+    <section id="wizard-panel" class="no-print lg:col-span-5 bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden flex flex-col">
+      <!-- 질문 헤더 -->
+      <div class="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+        <div>
+          <span id="q-badge" class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+            질문 1 / 12
+          </span>
+          <h2 id="q-title" class="text-lg font-bold text-slate-900 mt-1">원고의 이름과 주민등록번호</h2>
+        </div>
+        <div class="text-right">
+          <span id="q-law-ref" class="text-[11px] text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-200">민사소송법 제249조</span>
+        </div>
+      </div>
+
+      <!-- 질문 본문 (한 페이지에 오직 하나의 질문만 렌더링) -->
+      <div class="p-6 flex-1 min-h-[380px] flex flex-col justify-between">
+        <div id="question-stage" class="space-y-5">
+          <!-- JS에서 현재 step(1~12)에 해당하는 단일 질문 폼을 렌더링 -->
+        </div>
+
+        <!-- 하단 네비게이션 버튼 -->
+        <div class="pt-6 mt-6 border-t border-slate-200 flex items-center justify-between gap-3">
+          <button id="btn-prev-step" type="button" class="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm font-medium transition disabled:opacity-40 disabled:pointer-events-none">
+            ← 이전 질문
+          </button>
+
+          <div class="flex items-center gap-2">
+            <button id="btn-next-step" type="button" class="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold shadow-sm transition">
+              다음 질문 →
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 우측: 실시간 A4 소장 미리보기 및 PDF 출력 영역 -->
+    <section id="preview-panel" class="lg:col-span-7 flex flex-col">
+      <div class="no-print bg-slate-800 text-slate-200 rounded-t-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-700">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-400/30">실시간 법원 양식 반영</span>
+          <span class="text-xs text-slate-300">글꼴: <strong>신명조 · 휴먼명조</strong> | 규격: <strong>A4 (210×297mm)</strong></span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button type="button" data-page-filter="all" class="page-tab-btn text-xs px-2.5 py-1 rounded bg-amber-500 text-slate-950 font-semibold">전체(1~5쪽)</button>
+          <button type="button" data-page-filter="1" class="page-tab-btn text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200">1쪽(표지/취지)</button>
+          <button type="button" data-page-filter="2" class="page-tab-btn text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200">2쪽(원인/관할)</button>
+          <button type="button" data-page-filter="3" class="page-tab-btn text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200">3쪽(유의사항)</button>
+          <button type="button" data-page-filter="4" class="page-tab-btn text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200">4~5쪽(별지)</button>
+        </div>
+      </div>
+
+      <!-- A4 미리보기 스크롤 컨테이너 -->
+      <div class="bg-slate-300/80 p-3 sm:p-6 rounded-b-2xl border border-t-0 border-slate-300 overflow-x-auto max-h-[820px] overflow-y-auto">
+        <div id="print-area-wrapper" class="mx-auto" style="width: 210mm;">
+
+          <!-- ==================== PAGE 1: 소장 표지 및 청구취지 ==================== -->
+          <div id="a4-page-1" class="a4-sheet font-shinmyeongjo">
+            <!-- 상단 접수인 및 제목 -->
+            <div class="flex items-start justify-between mb-5">
+              <table class="border-collapse border border-black" style="width: 145px;">
+                <thead>
+                  <tr>
+                    <th class="border border-black py-1 text-center font-normal text-sm" style="letter-spacing: 0.35em; text-indent: 0.35em;">접 수 인</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="border border-black" style="height: 62px;"></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="flex-1 pt-6">
+                <h1 class="title-heading font-humanmyeongjo">소 장</h1>
+              </div>
+
+              <div style="width: 145px;"></div>
+            </div>
+
+            <!-- 우측 상단 사건번호 / 배당순위번호 / 담당 표 -->
+            <div class="flex justify-end mb-5">
+              <table class="border-collapse border border-black text-sm" style="width: 310px;">
+                <tbody>
+                  <tr>
+                    <td class="border border-black px-2 py-1 text-center" style="width: 105px; letter-spacing: 0.2em;">사 건 번 호</td>
+                    <td class="border border-black px-2 py-1"></td>
+                  </tr>
+                  <tr>
+                    <td class="border border-black px-2 py-1 text-center" style="letter-spacing: 0.05em;">배당순위번호</td>
+                    <td class="border border-black px-2 py-1"></td>
+                  </tr>
+                  <tr>
+                    <td class="border border-black px-2 py-1 text-center" style="letter-spacing: 0.8em; text-indent: 0.8em;">담 당</td>
+                    <td class="border border-black px-2 py-1 flex justify-between items-center border-0">
+                      <span>제</span>
+                      <span>단독(부)</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 사건명 및 당사자 표시 -->
+            <div class="space-y-3 text-[11pt] leading-relaxed mb-6">
+              <div class="flex items-baseline">
+                <span class="inline-block w-28 font-semibold" style="letter-spacing: 0.25em;">사 건 명</span>
+                <span id="doc-case-name" class="font-bold">대여금 청구의 소</span>
+              </div>
+
+              <!-- 원고 -->
+              <div class="space-y-1 pt-1">
+                <div class="flex items-baseline flex-wrap">
+                  <span class="inline-block w-28" style="letter-spacing: 0.6em;">원 고</span>
+                  <span class="mr-2">성명:</span>
+                  <span id="doc-plaintiff-name" class="font-semibold min-w-[90px] mr-6"></span>
+                  <span>주민등록번호( <span id="doc-plaintiff-rrn" class="inline-block min-w-[130px] text-center">-</span> )</span>
+                </div>
+                <div class="flex items-baseline pl-28">
+                  <span class="mr-2 whitespace-nowrap">주소:</span>
+                  <span id="doc-plaintiff-address" class="break-all"></span>
+                </div>
+                <div class="flex items-baseline pl-28">
+                  <span class="mr-2">연락 가능한 전화번호:</span>
+                  <span id="doc-plaintiff-phone"></span>
+                </div>
+              </div>
+
+              <!-- 1. 피고 -->
+              <div class="space-y-1 pt-2">
+                <div class="flex items-baseline flex-wrap">
+                  <span class="inline-block w-28" style="letter-spacing: 0.15em;">1. 피 고</span>
+                  <span class="mr-2">성명:</span>
+                  <span id="doc-defendant1-name" class="font-semibold min-w-[90px] mr-6"></span>
+                  <span>주민등록번호( <span id="doc-defendant1-rrn" class="inline-block min-w-[130px] text-center">-</span> )</span>
+                </div>
+                <div class="flex items-baseline pl-28">
+                  <span class="mr-2 whitespace-nowrap">주소:</span>
+                  <span id="doc-defendant1-address" class="break-all"></span>
+                </div>
+                <div class="flex items-baseline pl-28">
+                  <span class="mr-2">연락 가능한 전화번호:</span>
+                  <span id="doc-defendant1-phone"></span>
+                </div>
+              </div>
+
+              <!-- 2. 피고 (공동피고 있을 경우 또는 공란 유지) -->
+              <div class="space-y-1 pt-2">
+                <div class="flex items-baseline flex-wrap">
+                  <span class="inline-block w-28" style="letter-spacing: 0.15em;">2. 피 고</span>
+                  <span class="mr-2">성명:</span>
+                  <span id="doc-defendant2-name" class="font-semibold min-w-[90px] mr-6"></span>
+                  <span>주민등록번호( <span id="doc-defendant2-rrn" class="inline-block min-w-[130px] text-center">-</span> )</span>
+                </div>
+                <div class="flex items-baseline pl-28">
+                  <span class="mr-2 whitespace-nowrap">주소:</span>
+                  <span id="doc-defendant2-address" class="break-all"></span>
+                </div>
+                <div class="flex items-baseline pl-28">
+                  <span class="mr-2">연락 가능한 전화번호:</span>
+                  <span id="doc-defendant2-phone"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 소송목적의 값 / 인지 / 예납 송달료 표 -->
+            <table class="court-table mb-7">
+              <tbody>
+                <tr>
+                  <td rowspan="2" class="text-center font-medium" style="width: 22%;">소송목적의 값</td>
+                  <td rowspan="2" class="text-right pr-3" style="width: 28%;"><span id="doc-claim-amount"></span> 원</td>
+                  <td class="text-center" style="width: 22%; letter-spacing: 0.3em;">인 지</td>
+                  <td class="text-right pr-3" style="width: 28%;"><span id="doc-stamp-fee"></span> 원</td>
+                </tr>
+                <tr>
+                  <td class="text-center" style="letter-spacing: 0.08em;">예납 송달료</td>
+                  <td class="text-right pr-3"><span id="doc-delivery-fee"></span> 원</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <!-- 청구취지 -->
+            <div class="mt-4">
+              <h2 class="spaced-heading font-humanmyeongjo">청 구 취 지</h2>
+              <div id="doc-claim-purport" class="space-y-2.5 text-[11pt] leading-relaxed pl-2 whitespace-pre-line"></div>
+            </div>
+          </div>
+
+          <!-- ==================== PAGE 2: 청구원인 / 입증방법 / 첨부서류 / 관할법원 ==================== -->
+          <div id="a4-page-2" class="a4-sheet font-shinmyeongjo">
+            <h2 class="spaced-heading font-humanmyeongjo" style="margin-top: 4px;">청 구 원 인</h2>
+            <div id="doc-claim-cause" class="min-h-[210px] text-[10.8pt] leading-relaxed whitespace-pre-line mb-6 px-1"></div>
+
+            <h2 class="spaced-heading font-humanmyeongjo">입 증 방 법</h2>
+            <div id="doc-evidence-list" class="min-h-[65px] text-[10.8pt] leading-relaxed whitespace-pre-line mb-6 px-1"></div>
+
+            <h2 class="spaced-heading font-humanmyeongjo">첨 부 서 류</h2>
+            <div class="space-y-1 text-[10.8pt] mb-8 px-1">
+              <div class="flex justify-between max-w-md">
+                <span>1. 소송비용(인지, 송달료)납부서</span>
+                <span>각 1부</span>
+              </div>
+              <div class="flex justify-between max-w-md">
+                <span>1. 위 입증서류</span>
+                <span>각 1통</span>
+              </div>
+              <div class="flex justify-between max-w-md">
+                <span>1. 소장부본</span>
+                <span>1부</span>
+              </div>
+              <div id="doc-extra-attachment" class="flex justify-between max-w-md text-slate-800"></div>
+            </div>
+
+            <!-- 작성일자 및 원고 서명날인 -->
+            <div class="text-center mb-4 text-[11pt]">
+              <span id="doc-filing-date">2026. 11. 6.</span>
+            </div>
+            <div class="flex justify-center items-center gap-12 mb-6 text-[11pt]">
+              <span>원고 &nbsp; <strong id="doc-sign-plaintiff-name"></strong></span>
+              <span class="text-slate-700">(서명 또는 날인)</span>
+            </div>
+
+            <!-- 휴대전화를 통한 정보수신 신청 상자 -->
+            <div class="border border-black p-3.5 text-[9.5pt] leading-snug mb-6">
+              <div class="text-center font-bold text-[11pt] mb-2 font-humanmyeongjo" style="letter-spacing: 0.08em;">
+                휴대전화를 통한 정보수신 신청
+              </div>
+              <p class="mb-2">
+                위 사건에 관한 재판기일의 지정·변경·취소 및 문건접수 사실을 예납의무자가 납부한 송달료 잔액 범위 내에서 아래 휴대전화를 통하여 알려주실 것을 신청합니다.
+              </p>
+              <div class="font-semibold mb-2">
+                ▣ 휴대전화번호: <span id="doc-sms-phone"></span>
+              </div>
+              <div class="text-center mb-1">
+                <span id="doc-sms-date">2026. 11. 6.</span>
+              </div>
+              <div class="flex justify-center items-center gap-10 mb-2.5">
+                <span>신청인 원고 &nbsp; <strong id="doc-sms-plaintiff-name"></strong></span>
+                <span>(서명 또는 날인)</span>
+              </div>
+              <div class="space-y-0.5 text-[8.5pt] border-t border-dotted border-slate-400 pt-2">
+                <p>※ 종이기록사건에서 위에서 신청한 정보가 법원재판사무시스템에 입력되는 당일 문자메시지, 알림톡(카카오톡) 등으로 발송됩니다(전자기록사건은 전자소송홈페이지에서 전자소송 동의 후 알림서비스를 신청할 수 있음).</p>
+                <p>※ 문자메시지 등 이용 금액은 메시지 1건당 5∼27원씩 납부된 송달료에서 지급됩니다(송달료가 부족하면 문자메시지 등이 발송되지 않습니다).</p>
+                <p>※ 추후 서비스 대상 정보, 이용 금액 등이 변동될 수 있습니다.</p>
+                <p>※ 휴대전화를 통한 알림서비스는 원칙적으로 법적인 효력이 없으니 참고자료로만 활용하시기 바랍니다.</p>
+              </div>
+            </div>
+
+            <!-- 관할 법원 귀중 맺음말 -->
+            <div class="text-right pr-2 mt-4">
+              <span id="doc-competent-court" class="font-humanmyeongjo font-bold text-[14pt]" style="letter-spacing: 0.08em;">서울중앙지방법원 귀중</span>
+            </div>
+          </div>
+
+          <!-- ==================== PAGE 3: 유의사항 / 개인정보 보호조치 / 조정제도 안내 ==================== -->
+          <div id="a4-page-3" class="a4-sheet font-shinmyeongjo flex flex-col justify-center">
+            <div class="space-y-8 text-[10.5pt] leading-relaxed px-2">
+              <div>
+                <h3 class="text-center font-humanmyeongjo text-[11.5pt] mb-2">◇ 유의 사항 ◇</h3>
+                <ol class="list-decimal pl-5 space-y-1.5">
+                  <li>연락 가능한 전화번호에는 언제든지 연락 가능한 전화번호나 휴대전화번호를 기재하고, 그 밖에 팩스번호, 이메일 주소 등이 있으면 함께 기재하기 바랍니다.</li>
+                  <li>소송 인지의 영수필확인서와 송달료납부서를 별지 소송비용납부서 양식에 첨부하시기 바랍니다.</li>
+                </ol>
+              </div>
+
+              <div>
+                <h3 class="text-center font-humanmyeongjo text-[11.5pt] mb-2">◇ 개인정보 보호조치 안내 ◇</h3>
+                <p class="pl-1">
+                  가정폭력·성폭력·스토킹 등 소송관계인의 생명 또는 신체에 대한 위해 우려가 있는 경우 소명자료(수사기관 고소장 등)를 첨부하여, 주소 등 개인정보가 공개되지 않도록 보호조치를 신청할 수 있습니다.
+                </p>
+              </div>
+
+              <div>
+                <h3 class="text-center font-humanmyeongjo text-[11.5pt] mb-2">◇ 조정제도 안내 ◇</h3>
+                <ol class="list-decimal pl-5 space-y-1.5">
+                  <li>조정절차는 당사자 사이의 양보와 타협을 통해 분쟁을 정·공정·신속하고 효율적으로 해결하는 화해적 절차입니다.</li>
+                  <li>조정이 성립되면 확정 판결과 동일한 효력을 얻게 됩니다.</li>
+                  <li><span class="underline">수소법원(사건을 담당하는 재판부)은 필요하다고 인정하면 항소심 판결 선고 전까지 사건을 조정에 회부할 수 있습니다.</span> 조정이 성립하지 않으면 재판절차가 다시 진행됩니다.</li>
+                  <li>조정이 성립한 경우 소장·항소장 등에 붙인 인지액의 2분의 1에 해당하는 금액의 환급을 청구할 수 있습니다(인지액의 2분의 1에 해당하는 금액이 10만 원 미만이면 인지액에서 10만 원을 빼고 남은 금액).</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+
+          <!-- ==================== PAGE 4: 별지 소송비용납부서 (인지 영수필확인서) ==================== -->
+          <div id="a4-page-4" class="a4-sheet font-shinmyeongjo flex flex-col justify-center">
+            <div class="mb-2 text-[11pt]">별지</div>
+            <h2 class="text-center font-humanmyeongjo font-bold text-[15pt] underline mb-6" style="letter-spacing: 0.15em;">
+              소송비용납부서
+            </h2>
+            <div class="border border-black w-full flex flex-col items-center justify-center p-6 text-center" style="height: 360px;">
+              <p class="text-[11pt] mb-3" style="letter-spacing: 0.1em;">소송 인지 영수필확인서 붙이는 곳</p>
+              <p id="doc-box-stamp-summary" class="text-[9.5pt] text-slate-600"></p>
+            </div>
+          </div>
+
+          <!-- ==================== PAGE 5: 예납 송달료납부서 붙이는 곳 ==================== -->
+          <div id="a4-page-5" class="a4-sheet font-shinmyeongjo flex flex-col justify-center">
+            <div class="border border-black w-full flex flex-col items-center justify-center p-6 text-center mb-3" style="height: 360px;">
+              <p class="text-[11pt] mb-3" style="letter-spacing: 0.1em;">예납 송달료납부서 붙이는 곳</p>
+              <p id="doc-box-delivery-summary" class="text-[9.5pt] text-slate-600"></p>
+            </div>
+            <p class="text-[10pt]">
+              ※ 인지, 예납 송달료납부서 첨부 시 풀을 사용하시고 스테플러 사용은 자제하여 주시기 바랍니다.
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 질문 3 분기1: 피고 인적사항/주소 미특정 경고 팝업 모달 (작은 글씨 적용) -->
+  <div id="defendant-warning-modal" class="no-print fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-amber-300 animate-fadeIn">
+      <div class="flex items-center gap-2.5 text-amber-700 font-bold text-base mb-3">
+        <span class="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center text-sm">⚠️</span>
+        <span>피고 당사자 특정 유의 안내</span>
+      </div>
+      <!-- 요구사항: 경고창의 내용은 작은 글씨로 정확히 지정된 문구 표출 -->
+      <div class="bg-amber-50/90 border border-amber-200 rounded-xl p-4 mb-4">
+        <p id="defendant-warning-text" class="text-xs leading-relaxed text-slate-800 font-normal">
+          피고의 당사자 적격을 정확히 특정하지 않으면 소송이 진행되지 않을 수 있습니다. 추가적인 사실 조회 신청을 소장과 함께 법원에 접수해주시기 바랍니다.
+        </p>
+      </div>
+      <div class="text-[11px] text-slate-500 mb-5 space-y-1">
+        <p>• 누락 항목: <span id="missing-defendant-fields" class="font-semibold text-rose-600"></span></p>
+        <p>• 소장 제출 시 통신사·금융기관·관공서 사실조회신청서 또는 보정명령을 통한 주민등록초본 발급 절차를 함께 진행하실 수 있도록 첨부서류란에 사실조회신청서 안내를 병기해 드립니다.</p>
+      </div>
+      <div class="flex justify-end gap-2">
+        <button id="btn-modal-stay" type="button" class="px-3.5 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-medium">
+          돌아가서 마저 입력하기
+        </button>
+        <button id="btn-modal-proceed" type="button" class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold">
+          내용 확인 후 질문 4로 진행
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 네이버 지도 기준 도로명 주소 빠른 선택 모달 -->
+  <div id="naver-road-modal" class="no-print fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/60 p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
+        <div class="flex items-center gap-2">
+          <span class="px-2 py-0.5 rounded bg-emerald-600 text-white text-xs font-bold">NAVER 지도 기준</span>
+          <h3 class="font-bold text-slate-900 text-base">도로명 주소 검색 · 시군구 선택</h3>
+        </div>
+        <button id="btn-close-road-modal" type="button" class="text-slate-400 hover:text-slate-600 text-sm font-bold">✕</button>
+      </div>
+      <p class="text-xs text-slate-600 mb-3">지역(시·도 / 시·군·구)을 선택하거나 키워드로 검색하면 표준 도로명 주소가 자동 입력되며 관할 법원 산정에 반영됩니다.</p>
+      <div class="mb-3">
+        <input id="road-search-input" type="text" placeholder="예: 성남시 분당구 불정로, 서울 서초구 서초대로, 부산 연제구..." class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+      </div>
+      <div id="road-preset-list" class="max-h-60 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl mb-4"></div>
+      <div class="flex justify-end">
+        <button id="btn-close-road-modal-bottom" type="button" class="px-4 py-2 rounded-lg bg-slate-800 text-white text-xs font-medium">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 1. 상태(State) 정의 - 12개 질문 및 법원 문서 바인딩
+    // ============================================================================
+    const state = {
+      currentStep: 1,
+      totalSteps: 12,
+      // (1) 질문 1: 원고 이름, 주민등록번호 (+ 연락처)
+      plaintiffName: '김민수',
+      plaintiffRrnFront: '880512',
+      plaintiffRrnBack: '1234567',
+      plaintiffPhone: '010-2345-6789',
+      // (2) 질문 2: 원고 도로명 주소 (네이버 지도 기준)
+      plaintiffAddress: '경기도 성남시 분당구 불정로 6 (정자동)',
+      // (3) 질문 3: 피고 이름, 주민등록번호, 도로명 주소
+      defendantName: '이준호',
+      defendantRrnFront: '851024',
+      defendantRrnBack: '1357924',
+      defendantAddress: '서울특별시 강남구 테헤란로 152 (역삼동)',
+      defendantPhone: '010-9876-5432',
+      defendantIncompleteWarned: false,
+      includeFactInquiryNote: false,
+      // 공동피고(선택)
+      defendant2Name: '',
+      defendant2RrnFront: '',
+      defendant2RrnBack: '',
+      defendant2Address: '',
+      defendant2Phone: '',
+      // (4) 질문 4: 청구 금액 (양식: 금 000원, 아라비아 숫자, 3천만원 이하)
+      claimAmount: 15000000,
+      // (5) 질문 5: 청구하는 금액의 성격 (민법 참조)
+      claimNature: '대여금',
+      claimNatureCustom: '',
+      claimLawArticle: '민법 제598조(소비대차)',
+      // (6) 질문 6: 금액을 변제하기로 한 날짜 (직접 기입)
+      dueDate: '2026-06-30',
+      loanOrContractDate: '2025-06-30',
+      // (7) 질문 7: 약정한 이자율 (백분율)
+      hasAgreedInterest: true,
+      agreedInterestRate: '5',
+      interestStartDate: '2025-07-01',
+      // (8) 질문 8: 변제기 도과 후 약정한 지연손해금 (백분율) / 분기1: 없음 선택 시 소촉법 12% 고정
+      hasAgreedDelayRate: false, // 기본값: 약정 없음 -> 12% 특례법 적용 시연 가능
+      agreedDelayRate: '12',
+      // (9) 질문 9: 청구취지 확인 여부 및 직접 수정 텍스트
+      purportConfirmed: false,
+      purportManualEdit: false,
+      customPurportText: '',
+      // (10) 질문 10: 청구원인 및 입증방법
+      claimCauseText: '',
+      claimCauseManuallyEdited: false,
+      evidenceText: '1. 갑 제1호증 차용증(또는 계약서)\n2. 갑 제2호증 계좌거래내역서(송금확인증)\n3. 갑 제3호증 내용증명 우편물 및 통화·문자메시지 내역',
+      // (11) 질문 11: 인지액 및 송달료 산정 옵션
+      isElectronicFiling: false, // 종이소장 기본, 전자소송 10% 감액 비교 제공
+      partyCount: 2, // 원고 1 + 피고 1
+      unitDeliveryFee: 5640, // 2026.7.1. 개정 대법원 송달료 1회분 기준 (5,500원 선택 가능)
+      // (12) 질문 12: 민사소송법 기준 관할법원
+      jurisdictionBasis: 'property_duty', // 'defendant_addr' (민소법 제2조·제3조 보통재판적: 피고 주소지) vs 'property_duty' (민소법 제8조 의무이행지: 금전채무 지참채무 원칙상 원고 주소지)
+      competentCourt: '수원지방법원 성남지원',
+      filingDate: '2026. 11. 6.'
+    };
+
+    // 민법상 청구 성격 카탈로그
+    const CLAIM_NATURES = [
+      { key: '대여금', law: '민법 제598조(소비대차)', desc: '금전을 빌려주고 변제기에 반환받기로 한 청구' },
+      { key: '매매대금', law: '민법 제568조(매매의 효력)', desc: '물품·재산권을 매도하고 미지급 대금을 청구' },
+      { key: '구상금', law: '민법 제425조·제481조(출재채무자/변제자대위)', desc: '타인의 채무를 대신 변제한 후 반환을 청구' },
+      { key: '임대차보증금', law: '민법 제618조(임대차)', desc: '임대차 종료 후 반환받지 못한 보증금 청구' },
+      { key: '용역비(도급대금)', law: '민법 제664조(도급)', desc: '일(공사·용역)을 완성하고 미지급 보수를 청구' },
+      { key: '부당이득금', law: '민법 제741조(부당이득의 내용)', desc: '법률상 원인 없이 취득한 금전의 반환 청구' },
+      { key: '손해배상(기)', law: '민법 제390조·제750조(채무불이행·불법행위)', desc: '위법행위 또는 계약위반으로 입은 손해 청구' },
+      { key: '약정금', law: '민법 제105조·계약자유의 원칙', desc: '당사자 간 지급하기로 약정한 금전 청구' }
+    ];
+
+    // 네이버 지도 기준 주요 도로명 주소 프리셋
+    const ROAD_ADDRESS_PRESETS = [
+      { region: '경기 성남시 분당구', road: '경기도 성남시 분당구 불정로 6 (정자동)', court: '수원지방법원 성남지원' },
+      { region: '서울 강남구', road: '서울특별시 강남구 테헤란로 152 (역삼동)', court: '서울중앙지방법원' },
+      { region: '서울 서초구', road: '서울특별시 서초구 서초대로 219 (서초동)', court: '서울중앙지방법원' },
+      { region: '서울 송파구', road: '서울특별시 송파구 법원로 101 (문정동)', court: '서울동부지방법원' },
+      { region: '서울 마포구', road: '서울특별시 마포구 마포대로 174 (공덕동)', court: '서울서부지방법원' },
+      { region: '서울 양천구', road: '서울특별시 양천구 신월로 386 (신정동)', court: '서울남부지방법원' },
+      { region: '서울 노원구', road: '서울특별시 노원구 동일로 1414 (상계동)', court: '서울북부지방법원' },
+      { region: '경기 수원시 영통구', road: '경기도 수원시 영통구 법조로 105 (하동)', court: '수원지방법원' },
+      { region: '경기 고양시 일산동구', road: '경기도 고양시 일산동구 장백로 209 (장항동)', court: '의정부지방법원 고양지원' },
+      { region: '인천 미추홀구', road: '인천광역시 미추홀구 소성로 163 (학익동)', court: '인천지방법원' },
+      { region: '대전 서구', road: '대전광역시 서구 둔산중로 78 (둔산동)', court: '대전지방법원' },
+      { region: '대구 수성구', road: '대구광역시 수성구 동대구로 364 (범어동)', court: '대구지방법원' },
+      { region: '부산 연제구', road: '부산광역시 연제구 법원로 31 (거제동)', court: '부산지방법원' },
+      { region: '광주 동구', road: '광주광역시 동구 준법로 7-12 (지산동)', court: '광주지방법원' },
+      { region: '제주 제주시', road: '제주특별자치도 제주시 남광북5길 3 (이도이동)', court: '제주지방법원' }
+    ];
+
+    // 질문 메타데이터 (1~12)
+    const STEP_META = [
+      { step: 1, title: '원고의 이름과 주민등록번호', badge: '질문 1 / 12 · 원고 인적사항', law: '민사소송법 제249조(소장의 기재사항)' },
+      { step: 2, title: '원고의 도로명 주소 (네이버 지도 기준)', badge: '질문 2 / 12 · 원고 주소지', law: '민법 제467조제2항(지참채무 원칙)' },
+      { step: 3, title: '피고의 이름·주민등록번호·도로명 주소', badge: '질문 3 / 12 · 피고 특정', law: '당사자 특정 및 사실조회 안내' },
+      { step: 4, title: '청구 금액 (양식: 금 000원, 아라비아 숫자)', badge: '질문 4 / 12 · 소송목적의 값', law: '소액사건심판법 제2조(3천만원 이하)' },
+      { step: 5, title: '청구하는 금액의 성격 (민법 참조)', badge: '질문 5 / 12 · 청구권원', law: '민법 채권편 (소비대차·매매·구상금 등)' },
+      { step: 6, title: '금액을 변제하기로 한 날짜 (직접 기입)', badge: '질문 6 / 12 · 변제기(이행기)', law: '민법 제387조(이행기와 이행지체)' },
+      { step: 7, title: '약정한 이자율 (백분율)', badge: '질문 7 / 12 · 약정이자', law: '민법 제379조·이자제한법(연 20% 한도)' },
+      { step: 8, title: '변제기 경과 후 약정한 지연손해금 (백분율)', badge: '질문 8 / 12 · 지연손해금 분기', law: '소송촉진 등에 관한 특례법 제3조(연 12%)' },
+      { step: 9, title: '청구취지 자동 조합 확인 및 직접 수정', badge: '질문 9 / 12 · 청구취지 확정', law: '민사소송법 제249조제1항(청구취지)' },
+      { step: 10, title: '청구원인 작성란 및 입증서류', badge: '질문 10 / 12 · 청구원인 작성', law: '민사소송법 제249조제1항(청구원인)' },
+      { step: 11, title: '소송인지액과 예납 송달료 자동 계산', badge: '질문 11 / 12 · 소송비용 산정', law: '민사소송 등 인지법 제2조 · 인지규칙' },
+      { step: 12, title: '관할 법원 자동 탐색 및 소장 완성', badge: '질문 12 / 12 · 관할법원 귀중', law: '민사소송법 제2조·제3조·제8조' }
+    ];
+
+    // ============================================================================
+    // 2. 유틸리티 및 법령 계산 함수 (인지액, 송달료, 관할법원, 청구취지/원인 생성)
+    // ============================================================================
+    function formatNumber(num) {
+      const n = Number(String(num).replace(/[^0-9]/g, '')) || 0;
+      return n.toLocaleString('ko-KR');
+    }
+
+    function formatKoreanDate(isoStr) {
+      if (!isoStr) return '';
+      const parts = isoStr.split('-');
+      if (parts.length !== 3) return isoStr;
+      return `${parts[0]}. ${parseInt(parts[1], 10)}. ${parseInt(parts[2], 10)}.`;
+    }
+
+    function getNextDayFormatted(isoStr) {
+      if (!isoStr) return '';
+      const d = new Date(isoStr + 'T00:00:00');
+      if (isNaN(d.getTime())) return isoStr;
+      d.setDate(d.getDate() + 1);
+      return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
+    }
+
+    // 민사소송 등 인지법 제2조 & 민사소송 등 인지규칙 기반 인지액 계산
+    function calculateStampFee(amount, isElectronic = false) {
+      const val = Math.max(0, Number(amount) || 0);
+      let raw = 0;
+      if (val < 10000000) {
+        raw = Math.floor(val * 0.005); // 1천만원 미만: 1만분의 50 (0.5%)
+      } else if (val < 100000000) {
+        raw = Math.floor(val * 0.0045 + 5000); // 1천만원 이상 1억원 미만: 1만분의 45 + 5,000원
+      } else {
+        raw = Math.floor(val * 0.004 + 55000);
+      }
+
+      if (isElectronic) {
+        raw = Math.floor(raw * 0.9); // 전자소송 10% 감액
+      }
+
+      // 1천원 미만이면 1천원, 1천원 이상이면 100원 미만 절사 (민사소송 등 인지법 제2조제2항)
+      if (raw < 1000) return 1000;
+      return Math.floor(raw / 100) * 100;
+    }
+
+    // 소액사건 예납 송달료 계산: 당사자수 × 10회분 × 1회 송달료
+    function calculateDeliveryFee() {
+      const parties = state.defendant2Name.trim() ? 3 : 2;
+      state.partyCount = parties;
+      return parties * 10 * state.unitDeliveryFee;
+    }
+
+    // 주소 문자열로부터 대한민국 관할 지방법원/지원 자동 판별 (민사소송법 제2조, 제3조, 제8조)
+    function detectCourtFromAddress(addr) {
+      if (!addr || !addr.trim()) return '서울중앙지방법원';
+      const a = addr.trim();
+
+      // 서울특별시 25개 자치구
+      if (a.includes('서울')) {
+        if (/(종로구|중구|강남구|서초구|관악구|동작구)/.test(a)) return '서울중앙지방법원';
+        if (/(성동구|광진구|강동구|송파구)/.test(a)) return '서울동부지방법원';
+        if (/(영등포구|강서구|양천구|구로구|금천구)/.test(a)) return '서울남부지방법원';
+        if (/(동대문구|중랑구|성북구|강북구|도봉구|노원구)/.test(a)) return '서울북부지방법원';
+        if (/(은평구|서대문구|마포구|용산구)/.test(a)) return '서울서부지방법원';
+        return '서울중앙지방법원';
+      }
+
+      // 경기도
+      if (/(성남|광주|하남)/.test(a)) return '수원지방법원 성남지원';
+      if (/(여주|이천|양평)/.test(a)) return '수원지방법원 여주지원';
+      if (/(평택|안성)/.test(a)) return '수원지방법원 평택지원';
+      if (/(안산|시흥|광명)/.test(a)) return '수원지방법원 안산지원';
+      if (/(안양|군포|의왕|과천)/.test(a)) return '수원지방법원 안양지원';
+      if (/(수원|용인|화성|오산)/.test(a)) return '수원지방법원';
+      if (/(고양|파주)/.test(a)) return '의정부지방법원 고양지원';
+      if (/(남양주|구리|가평)/.test(a)) return '의정부지방법원 남양주지원';
+      if (/(의정부|양주|동두천|포천|연천)/.test(a)) return '의정부지방법원';
+      if (/(부천|김포)/.test(a)) return '인천지방법원 부천지원';
+
+      // 인천
+      if (a.includes('인천') || /(강화|옹진)/.test(a)) return '인천지방법원';
+
+      // 강원
+      if (/(강릉|동해|삼척)/.test(a)) return '춘천지방법원 강릉지원';
+      if (/(원주|횡성)/.test(a)) return '춘천지방법원 원주지원';
+      if (/(속초|양양|고성)/.test(a)) return '춘천지방법원 속초지원';
+      if (/(영월|태백|정선|평창)/.test(a)) return '춘천지방법원 영월지원';
+      if (a.includes('강원') || /(춘천|홍천|화천|양구|인제)/.test(a)) return '춘천지방법원';
+
+      // 대전 / 세종 / 충남 / 충북
+      if (/(천안|아산)/.test(a)) return '대전지방법원 천안지원';
+      if (/(서산|태안|당진)/.test(a)) return '대전지방법원 서산지원';
+      if (/(홍성|보령|예산|서천)/.test(a)) return '대전지방법원 홍성지원';
+      if (/(공주|청양)/.test(a)) return '대전지방법원 공주지원';
+      if (/(논산|계룡|부여)/.test(a)) return '대전지방법원 논산지원';
+      if (a.includes('대전') || a.includes('세종') || a.includes('금산')) return '대전지방법원';
+      if (/(충주|음성)/.test(a)) return '청주지방법원 충주지원';
+      if (/(제천|단양)/.test(a)) return '청주지방법원 제천지원';
+      if (/(영동|옥천)/.test(a)) return '청주지방법원 영동지원';
+      if (a.includes('충북') || a.includes('충청북도') || /(청주|진천|보은|괴산|증평)/.test(a)) return '청주지방법원';
+
+      // 대구 / 경북
+      if (a.includes('포항')) return '대구지방법원 포항지원';
+      if (a.includes('경주')) return '대구지방법원 경주지원';
+      if (/(김천|구미)/.test(a)) return '대구지방법원 김천지원';
+      if (/(안동|영주|봉화)/.test(a)) return '대구지방법원 안동지원';
+      if (/(상주|문경|예천)/.test(a)) return '대구지방법원 상주지원';
+      if (/(영덕|울진|영양)/.test(a)) return '대구지방법원 영덕지원';
+      if (a.includes('대구') || a.includes('경북') || a.includes('경상북도')) return '대구지방법원';
+
+      // 부산 / 울산 / 경남
+      if (a.includes('부산')) {
+        if (/(해운대구|수영구|남구|기장군)/.test(a)) return '부산지방법원 동부지원';
+        if (/(강서구|북구|사상구|사하구|서구)/.test(a)) return '부산지방법원 서부지원';
+        return '부산지방법원';
+      }
+      if (a.includes('울산') || a.includes('양산')) return '울산지방법원';
+      if (/(진주|사천|남해|하동|산청)/.test(a)) return '창원지방법원 진주지원';
+      if (/(통영|거제|고성)/.test(a)) return '창원지방법원 통영지원';
+      if (/(밀양|창녕)/.test(a)) return '창원지방법원 밀양지원';
+      if (/(거창|함양|합천)/.test(a)) return '창원지방법원 거창지원';
+      if (a.includes('경남') || a.includes('경상남도') || /(창원|김해|함안|의령)/.test(a)) return '창원지방법원';
+
+      // 광주 / 전남 / 전북
+      if (/(순천|여수|광양|고흥|보성|구례)/.test(a)) return '광주지방법원 순천지원';
+      if (/(목포|무안|신안|함평|영암)/.test(a)) return '광주지방법원 목포지원';
+      if (/(해남|강진|완도|진도|장흥)/.test(a)) return '광주지방법원 해남지원';
+      if (a.includes('광주') || a.includes('전남') || a.includes('전라남도')) return '광주지방법원';
+      if (/(군산|익산)/.test(a)) return '전주지방법원 군산지원';
+      if (/(정읍|고창|부안)/.test(a)) return '전주지방법원 정읍지원';
+      if (/(남원|장수|임실|순창)/.test(a)) return '전주지방법원 남원지원';
+      if (a.includes('전북') || a.includes('전라북도') || a.includes('전주')) return '전주지방법원';
+
+      if (a.includes('제주')) return '제주지방법원';
+      return '서울중앙지방법원';
+    }
+
+    function getActiveNatureName() {
+      return state.claimNature === '직접입력'
+        ? (state.claimNatureCustom.trim() || '청구금')
+        : state.claimNature;
+    }
+
+    // 질문 4 ~ 질문 8 정보를 종합하여 청구취지 자동 생성
+    function buildAutoClaimPurport() {
+      const amountFormatted = formatNumber(state.claimAmount);
+      const dueStr = formatKoreanDate(state.dueDate);
+      const nextDayAfterDue = getNextDayFormatted(state.dueDate);
+      const interestStartStr = formatKoreanDate(state.interestStartDate || state.loanOrContractDate);
+      const agreedInterest = parseFloat(state.agreedInterestRate) || 0;
+      const delayRate = state.hasAgreedDelayRate ? (parseFloat(state.agreedDelayRate) || 12) : 12;
+
+      let para1 = '';
+      if (state.hasAgreedInterest && agreedInterest > 0 && interestStartStr && dueStr) {
+        if (state.hasAgreedDelayRate) {
+          para1 = `1. 피고는 원고에게 금 ${amountFormatted}원 및 이에 대하여 ${interestStartStr}부터 변제기인 ${dueStr}까지는 약정이율인 연 ${agreedInterest}%의, 그 다음 날인 ${nextDayAfterDue}부터 다 갚는 날까지는 약정 지연손해금률인 연 ${delayRate}%의 각 비율로 계산한 돈을 지급하라.`;
+        } else {
+          para1 = `1. 피고는 원고에게 금 ${amountFormatted}원 및 이에 대하여 ${interestStartStr}부터 ${dueStr}까지는 약정이율인 연 ${agreedInterest}%의, 그 다음 날인 ${nextDayAfterDue}부터 소장부본 송달일까지는 민법 소정의 연 5%의, 그 다음 날부터 다 갚는 날까지는 「소송촉진 등에 관한 특례법」에 따른 연 12%의 각 비율로 계산한 돈을 지급하라.`;
+        }
+      } else {
+        if (state.hasAgreedDelayRate && nextDayAfterDue) {
+          para1 = `1. 피고는 원고에게 금 ${amountFormatted}원 및 이에 대하여 변제기 다음 날인 ${nextDayAfterDue}부터 다 갚는 날까지 약정 지연손해금률인 연 ${delayRate}%의 비율로 계산한 돈을 지급하라.`;
+        } else {
+          para1 = `1. 피고는 원고에게 금 ${amountFormatted}원 및 이에 대하여 소장부본 송달 다음 날부터 다 갚는 날까지 연 12%의 비율로 계산한 돈을 지급하라.`;
+        }
+      }
+
+      return `${para1}\n2. 소송비용은 피고가 부담한다.\n3. 제1항은 가집행할 수 있다.\n라는 판결을 구합니다.`;
+    }
+
+    // 키워드 추출 및 조합을 통한 청구원인 자동 생성
+    function buildAutoClaimCause() {
+      const pName = state.plaintiffName || '원고';
+      const dName = state.defendantName || '피고';
+      const nature = getActiveNatureName();
+      const amountFormatted = formatNumber(state.claimAmount);
+      const contractStr = formatKoreanDate(state.loanOrContractDate) || '2025. 6. 30.';
+      const dueStr = formatKoreanDate(state.dueDate) || '2026. 6. 30.';
+      const nextDayAfterDue = getNextDayFormatted(state.dueDate) || '2026. 7. 1.';
+      const interestRate = state.hasAgreedInterest && parseFloat(state.agreedInterestRate) > 0
+        ? `약정이자 연 ${state.agreedInterestRate}%로 정하여`
+        : '별도의 약정이자 없이';
+      const delayDesc = state.hasAgreedDelayRate
+        ? `변제기 도과 시 약정 지연손해금률 연 ${state.agreedDelayRate}%를 적용하기로 약정하였으나`
+        : `지연손해금에 관한 별도 약정이 없으므로 「소송촉진 등에 관한 특례법」 제3조제1항에 따라 연 12%의 지연손해금을 청구하며`;
+
+      return `1. 당사자 관계 및 ${nature} 채권의 발생 (${state.claimLawArticle})\n원고(${pName})는 ${contractStr} 피고(${dName})에게 ${nature} 명목으로 금 ${amountFormatted}원을 변제기 ${dueStr}, ${interestRate} 지급(교부)하였습니다.\n\n2. 변제기 도과 및 피고의 이행지체\n원고는 약정한 변제기인 ${dueStr}이 도래함에 따라 피고에게 위 금 ${amountFormatted}원의 변제를 수차례 독촉하였으나, 피고는 현재까지 이를 전혀 이행하지 않고 있습니다.\n\n3. 결론\n이에 원고는 피고로부터 위 ${nature} 원금 금 ${amountFormatted}원 및 ${delayDesc}, 그 지급을 구하기 위하여 이 사건 소를 제기하기에 이르렀습니다.`;
+    }
+
+    // ============================================================================
+    // 3. 실시간 A4 소장(1~5쪽) 렌더링 동기화
+    // ============================================================================
+    function syncA4Document() {
+      const nature = getActiveNatureName();
+      document.getElementById('doc-case-name').textContent = `${nature} 청구의 소`;
+
+      // 원고 정보
+      document.getElementById('doc-plaintiff-name').textContent = state.plaintiffName || '';
+      const pRrn = (state.plaintiffRrnFront || state.plaintiffRrnBack)
+        ? `${state.plaintiffRrnFront || '      '} - ${state.plaintiffRrnBack || '       '}`
+        : '      -       ';
+      document.getElementById('doc-plaintiff-rrn').textContent = pRrn;
+      document.getElementById('doc-plaintiff-address').textContent = state.plaintiffAddress || '';
+      document.getElementById('doc-plaintiff-phone').textContent = state.plaintiffPhone || '';
+
+      // 1. 피고 정보
+      document.getElementById('doc-defendant1-name').textContent = state.defendantName || '성명미상(특정필요)';
+      const d1Rrn = (state.defendantRrnFront || state.defendantRrnBack)
+        ? `${state.defendantRrnFront || '      '} - ${state.defendantRrnBack || '       '}`
+        : '미상(사실조회신청 예정)';
+      document.getElementById('doc-defendant1-rrn').textContent = d1Rrn;
+      document.getElementById('doc-defendant1-address').textContent = state.defendantAddress || '주소미상(사실조회·보정 예정)';
+      document.getElementById('doc-defendant1-phone').textContent = state.defendantPhone || '';
+
+      // 2. 피고 정보
+      document.getElementById('doc-defendant2-name').textContent = state.defendant2Name || '';
+      const d2Rrn = (state.defendant2RrnFront || state.defendant2RrnBack)
+        ? `${state.defendant2RrnFront} - ${state.defendant2RrnBack}`
+        : '      -       ';
+      document.getElementById('doc-defendant2-rrn').textContent = d2Rrn;
+      document.getElementById('doc-defendant2-address').textContent = state.defendant2Address || '';
+      document.getElementById('doc-defendant2-phone').textContent = state.defendant2Phone || '';
+
+      // 소송목적의 값 / 인지 / 송달료
+      const stampFee = calculateStampFee(state.claimAmount, state.isElectronicFiling);
+      const deliveryFee = calculateDeliveryFee();
+      document.getElementById('doc-claim-amount').textContent = `금 ${formatNumber(state.claimAmount)}`;
+      document.getElementById('doc-stamp-fee').textContent = formatNumber(stampFee);
+      document.getElementById('doc-delivery-fee').textContent = formatNumber(deliveryFee);
+
+      // 청구취지
+      if (!state.purportManualEdit) {
+        state.customPurportText = buildAutoClaimPurport();
+      }
+      document.getElementById('doc-claim-purport').textContent = state.customPurportText;
+
+      // 청구원인
+      if (!state.claimCauseManuallyEdited) {
+        state.claimCauseText = buildAutoClaimCause();
+      }
+      document.getElementById('doc-claim-cause').textContent = state.claimCauseText;
+
+      // 입증방법
+      document.getElementById('doc-evidence-list').textContent = state.evidenceText;
+
+      // 사실조회신청 안내 첨부서류 표시
+      const extraAtt = document.getElementById('doc-extra-attachment');
+      if (state.includeFactInquiryNote || !isDefendantFullySpecified()) {
+        extraAtt.innerHTML = '<span>1. 사실조회신청서(피고 인적사항 특정용)</span><span>1부</span>';
+      } else {
+        extraAtt.innerHTML = '';
+      }
+
+      // 날짜 및 서명란
+      document.getElementById('doc-filing-date').textContent = state.filingDate;
+      document.getElementById('doc-sign-plaintiff-name').textContent = state.plaintiffName || '';
+      document.getElementById('doc-sms-phone').textContent = state.plaintiffPhone || '';
+      document.getElementById('doc-sms-date').textContent = state.filingDate;
+      document.getElementById('doc-sms-plaintiff-name').textContent = state.plaintiffName || '';
+
+      // 관할법원 자동 반영
+      const targetAddr = state.jurisdictionBasis === 'defendant_addr'
+        ? state.defendantAddress
+        : state.plaintiffAddress;
+      state.competentCourt = detectCourtFromAddress(targetAddr);
+      document.getElementById('doc-competent-court').textContent = `${state.competentCourt} 귀중`;
+
+      // 4~5쪽 별지 요약 표시
+      document.getElementById('doc-box-stamp-summary').textContent =
+        `[산정 기준: 소송목적의 값 금 ${formatNumber(state.claimAmount)}원 → 납부할 인지액 금 ${formatNumber(stampFee)}원]`;
+      document.getElementById('doc-box-delivery-summary').textContent =
+        `[산정 기준: 당사자 ${state.partyCount}인 × 10회분 × ${formatNumber(state.unitDeliveryFee)}원 = 예납 송달료 금 ${formatNumber(deliveryFee)}원]`;
+    }
+
+    function isDefendantFullySpecified() {
+      const hasName = state.defendantName && state.defendantName.trim().length > 0;
+      const hasRrn = state.defendantRrnFront && state.defendantRrnFront.trim().length === 6 &&
+                     state.defendantRrnBack && state.defendantRrnBack.trim().length === 7;
+      const hasAddr = state.defendantAddress && state.defendantAddress.trim().length >= 5;
+      return Boolean(hasName && hasRrn && hasAddr);
+    }
+
+    function getMissingDefendantFieldsList() {
+      const missing = [];
+      if (!state.defendantName || !state.defendantName.trim()) missing.push('피고 이름');
+      if (!state.defendantRrnFront || state.defendantRrnFront.trim().length !== 6 ||
+          !state.defendantRrnBack || state.defendantRrnBack.trim().length !== 7) {
+        missing.push('피고 주민등록번호(13자리)');
+      }
+      if (!state.defendantAddress || state.defendantAddress.trim().length < 5) {
+        missing.push('피고 도로명 주소');
+      }
+      return missing;
+    }
+
+    // ============================================================================
+    // 4. 단계별 단일 질문 렌더링 (페이지 당 1개 질문 엄격 할당)
+    // ============================================================================
+    function renderStepPills() {
+      const container = document.getElementById('step-pills-container');
+      container.innerHTML = STEP_META.map(m => {
+        const active = m.step === state.currentStep;
+        const done = m.step < state.currentStep;
+        const cls = active
+          ? 'bg-amber-500 text-slate-950 font-bold border-amber-400'
+          : done
+            ? 'bg-slate-800 text-emerald-300 border-slate-700 hover:bg-slate-700'
+            : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800';
+        return `<button type="button" data-goto-step="${m.step}" class="step-pill-btn text-[11px] px-2.5 py-1 rounded-md border whitespace-nowrap transition ${cls}">
+          ${done ? '✓ ' : ''}질문 ${m.step}
+        </button>`;
+      }).join('');
+
+      container.querySelectorAll('.step-pill-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const target = parseInt(btn.getAttribute('data-goto-step'), 10);
+          tryNavigateToStep(target);
+        });
+      });
+    }
+
+    function renderCurrentQuestion() {
+      const meta = STEP_META[state.currentStep - 1];
+      document.getElementById('q-badge').textContent = meta.badge;
+      document.getElementById('q-title').textContent = `(${meta.step}) 질문 ${meta.step}. ${meta.title}`;
+      document.getElementById('q-law-ref').textContent = meta.law;
+
+      const pct = Math.round((state.currentStep / state.totalSteps) * 100);
+      document.getElementById('step-indicator-label').textContent = meta.badge;
+      document.getElementById('step-progress-percent').textContent = `${pct}% 완료`;
+      document.getElementById('step-progress-bar').style.width = `${pct}%`;
+
+      document.getElementById('btn-prev-step').disabled = state.currentStep === 1;
+      const nextBtn = document.getElementById('btn-next-step');
+      if (state.currentStep === 9 && !state.purportConfirmed) {
+        nextBtn.textContent = '청구취지 확인 완료 후 다음으로 →';
+      } else if (state.currentStep === 12) {
+        nextBtn.textContent = '📥 완성된 소장 PDF 내려받기';
+      } else {
+        nextBtn.textContent = `다음 (질문 ${state.currentStep + 1}) →`;
+      }
+
+      renderStepPills();
+      const stage = document.getElementById('question-stage');
+
+      // 각 페이지당 정확히 1개의 질문만 렌더링
+      if (state.currentStep === 1) {
+        stage.innerHTML = `
+          <div class="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3.5 text-xs text-indigo-900">
+            소장을 제기하는 <strong>원고(채권자)</strong>의 실명과 주민등록번호 13자리를 입력해 주세요. 입력된 내용은 소장 1쪽 당사자 표시란과 2쪽 서명란에 즉시 반영됩니다.
+          </div>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">원고 성명 <span class="text-rose-500">*</span></label>
+              <input id="inp-p-name" type="text" value="${state.plaintiffName}" placeholder="예: 김민수" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">원고 주민등록번호 (앞 6자리 - 뒤 7자리) <span class="text-rose-500">*</span></label>
+              <div class="grid grid-cols-11 gap-2 items-center">
+                <input id="inp-p-rrn1" type="text" maxlength="6" value="${state.plaintiffRrnFront}" placeholder="880512" class="col-span-5 px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm text-center tracking-widest focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                <span class="col-span-1 text-center font-bold text-slate-400">-</span>
+                <input id="inp-p-rrn2" type="text" maxlength="7" value="${state.plaintiffRrnBack}" placeholder="1234567" class="col-span-5 px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm text-center tracking-widest focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">원고 연락 가능한 휴대전화번호 (재판기일 문자수신 신청 연동)</label>
+              <input id="inp-p-phone" type="text" value="${state.plaintiffPhone}" placeholder="예: 010-2345-6789" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            </div>
+          </div>
+        `;
+        document.getElementById('inp-p-name').addEventListener('input', e => { state.plaintiffName = e.target.value; syncA4Document(); });
+        document.getElementById('inp-p-rrn1').addEventListener('input', e => { state.plaintiffRrnFront = e.target.value.replace(/[^0-9]/g, ''); e.target.value = state.plaintiffRrnFront; syncA4Document(); });
+        document.getElementById('inp-p-rrn2').addEventListener('input', e => { state.plaintiffRrnBack = e.target.value.replace(/[^0-9]/g, ''); e.target.value = state.plaintiffRrnBack; syncA4Document(); });
+        document.getElementById('inp-p-phone').addEventListener('input', e => { state.plaintiffPhone = e.target.value; syncA4Document(); });
+      }
+
+      else if (state.currentStep === 2) {
+        stage.innerHTML = `
+          <div class="bg-emerald-50/80 border border-emerald-200 rounded-xl p-3.5 text-xs text-emerald-950">
+            <strong>원고의 도로명 주소(네이버 지도 기준)</strong>를 입력해 주세요. 금전채무는 지참채무(민법 제467조제2항)이므로 의무이행지인 원고 주소지 관할 법원을 자동으로 찾는 기준이 됩니다.
+          </div>
+          <div class="space-y-4">
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="text-xs font-semibold text-slate-700">원고 도로명 주소 (네이버 지도 표기 기준) <span class="text-rose-500">*</span></label>
+                <button id="btn-open-naver-p" type="button" class="text-xs px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition">
+                  🗺️ 네이버 지도 기준 도로명 검색
+                </button>
+              </div>
+              <input id="inp-p-addr" type="text" value="${state.plaintiffAddress}" placeholder="예: 경기도 성남시 분당구 불정로 6 (정자동)" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            </div>
+            <div class="bg-slate-50 rounded-xl p-3.5 border border-slate-200 text-xs space-y-1.5">
+              <div class="font-semibold text-slate-700">📌 입력 주소 기반 의무이행지 관할법원 판별 결과</div>
+              <div class="text-slate-600">현재 주소 기준 관할: <strong class="text-indigo-700">${detectCourtFromAddress(state.plaintiffAddress)}</strong></div>
+              <div class="text-[11px] text-slate-500">※ 우편물 송달이 가능하도록 동·호수 또는 상세 층수를 함께 기입해 주세요.</div>
+            </div>
+          </div>
+        `;
+        document.getElementById('inp-p-addr').addEventListener('input', e => {
+          state.plaintiffAddress = e.target.value;
+          syncA4Document();
+        });
+        document.getElementById('btn-open-naver-p').addEventListener('click', () => openNaverRoadModal('plaintiff'));
+      }
+
+      else if (state.currentStep === 3) {
+        const specified = isDefendantFullySpecified();
+        stage.innerHTML = `
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-950 space-y-1">
+            <div class="font-bold">피고(채무자)의 이름, 주민등록번호, 도로명 주소(네이버 지도 기준)</div>
+            <p class="text-[11px] text-amber-900">만일 3가지 항목 중 하나라도 알지 못해 비워두거나 미완성 상태로 넘어갈 경우, <strong>당사자 적격 특정 및 사실조회 신청 안내 경고창</strong>이 팝업으로 표시됩니다.</p>
+          </div>
+          <div class="space-y-3.5">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-semibold text-slate-700">1. 피고 성명 <span class="text-rose-500">*</span></label>
+              <button id="btn-test-incomplete-def" type="button" class="text-[11px] px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100">
+                피고 주민번호/주소 모름 상태 체험(분기1 테스트)
+              </button>
+            </div>
+            <input id="inp-d-name" type="text" value="${state.defendantName}" placeholder="예: 이준호" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">피고 주민등록번호 (13자리) <span class="text-rose-500">*</span></label>
+              <div class="grid grid-cols-11 gap-2 items-center">
+                <input id="inp-d-rrn1" type="text" maxlength="6" value="${state.defendantRrnFront}" placeholder="851024" class="col-span-5 px-3 py-2 rounded-xl border border-slate-300 text-sm text-center tracking-widest">
+                <span class="col-span-1 text-center font-bold text-slate-400">-</span>
+                <input id="inp-d-rrn2" type="text" maxlength="7" value="${state.defendantRrnBack}" placeholder="1357924" class="col-span-5 px-3 py-2 rounded-xl border border-slate-300 text-sm text-center tracking-widest">
+              </div>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="text-xs font-semibold text-slate-700">피고 도로명 주소 (네이버 지도 기준) <span class="text-rose-500">*</span></label>
+                <button id="btn-open-naver-d" type="button" class="text-xs px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">
+                  🗺️ 네이버 지도 도로명 선택
+                </button>
+              </div>
+              <input id="inp-d-addr" type="text" value="${state.defendantAddress}" placeholder="예: 서울특별시 강남구 테헤란로 152 (역삼동)" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">피고 연락 가능한 전화번호 (선택)</label>
+              <input id="inp-d-phone" type="text" value="${state.defendantPhone}" placeholder="예: 010-9876-5432" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
+            </div>
+
+            <div id="def-status-banner" class="p-2.5 rounded-lg text-xs border ${specified ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}">
+              ${specified
+                ? '✓ 피고의 이름·주민등록번호·도로명 주소가 모두 특정되었습니다. (분기2: 질문 4로 바로 진행 가능)'
+                : '⚠️ 미입력 항목(' + getMissingDefendantFieldsList().join(', ') + ')이 있습니다. 다음 클릭 시 사실조회 안내 경고 팝업(분기1)이 표시됩니다.'}
+            </div>
+          </div>
+        `;
+        const refreshBanner = () => {
+          syncA4Document();
+          const ok = isDefendantFullySpecified();
+          const b = document.getElementById('def-status-banner');
+          b.className = `p-2.5 rounded-lg text-xs border ${ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`;
+          b.textContent = ok
+            ? '✓ 피고의 이름·주민등록번호·도로명 주소가 모두 특정되었습니다. (분기2: 질문 4로 바로 진행 가능)'
+            : '⚠️ 미입력 항목(' + getMissingDefendantFieldsList().join(', ') + ')이 있습니다. 다음 클릭 시 사실조회 안내 경고 팝업(분기1)이 표시됩니다.';
+        };
+        document.getElementById('inp-d-name').addEventListener('input', e => { state.defendantName = e.target.value; refreshBanner(); });
+        document.getElementById('inp-d-rrn1').addEventListener('input', e => { state.defendantRrnFront = e.target.value.replace(/[^0-9]/g, ''); e.target.value = state.defendantRrnFront; refreshBanner(); });
+        document.getElementById('inp-d-rrn2').addEventListener('input', e => { state.defendantRrnBack = e.target.value.replace(/[^0-9]/g, ''); e.target.value = state.defendantRrnBack; refreshBanner(); });
+        document.getElementById('inp-d-addr').addEventListener('input', e => { state.defendantAddress = e.target.value; refreshBanner(); });
+        document.getElementById('inp-d-phone').addEventListener('input', e => { state.defendantPhone = e.target.value; syncA4Document(); });
+        document.getElementById('btn-open-naver-d').addEventListener('click', () => openNaverRoadModal('defendant'));
+        document.getElementById('btn-test-incomplete-def').addEventListener('click', () => {
+          state.defendantRrnBack = '';
+          document.getElementById('inp-d-rrn2').value = '';
+          refreshBanner();
+          showDefendantWarningModal();
+        });
+      }
+
+      else if (state.currentStep === 4) {
+        const overLimit = state.claimAmount > 30000000;
+        stage.innerHTML = `
+          <div class="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3.5 text-xs text-indigo-900">
+            <strong>(질문 3에 대한 분기 2)</strong> 피고에게 청구하는 원금(소송목적의 값)을 아라비아 숫자로 입력해 주세요. 「소액사건심판법」 제2조에 따라 <strong>30,000,000원(3천만원) 이하</strong>의 금전 지급 청구에 적용됩니다.
+          </div>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">청구 금액 (양식: 금 000원, 아라비아 숫자) <span class="text-rose-500">*</span></label>
+              <div class="flex items-center rounded-xl border-2 border-slate-300 focus-within:border-indigo-600 bg-white overflow-hidden">
+                <span class="px-4 py-3 bg-slate-100 text-slate-800 font-bold text-sm border-r border-slate-300">금</span>
+                <input id="inp-claim-amount" type="text" inputmode="numeric" value="${formatNumber(state.claimAmount)}" class="flex-1 px-4 py-3 text-right font-bold text-lg text-slate-900 focus:outline-none">
+                <span class="px-4 py-3 bg-slate-100 text-slate-800 font-bold text-sm border-l border-slate-300">원</span>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-1.5">
+              ${[3000000, 5000000, 10000000, 15000000, 20000000, 30000000].map(v => `
+                <button type="button" data-amt="${v}" class="quick-amt-btn text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium">
+                  금 ${formatNumber(v)}원
+                </button>
+              `).join('')}
+            </div>
+
+            <div id="amt-validation-box" class="p-3 rounded-xl border text-xs ${overLimit ? 'bg-rose-50 border-rose-300 text-rose-800' : 'bg-slate-50 border-slate-200 text-slate-700'}">
+              <div>소장 표기 양식: <strong id="formatted-amt-preview" class="text-indigo-700">금 ${formatNumber(state.claimAmount)}원</strong></div>
+              <div id="amt-limit-msg" class="mt-1 text-[11px]">
+                ${overLimit
+                  ? '⚠️ 30,000,000원을 초과하면 소액사건(가소)이 아닌 민사 제1심 단독사건(가단)으로 분류됩니다. 3천만원 이하로 조정하거나 확인해 주세요.'
+                  : '✓ 3,000만원 이하 소액사건 범위 내에 해당합니다.'}
+              </div>
+            </div>
+          </div>
+        `;
+        const inp = document.getElementById('inp-claim-amount');
+        const updateAmt = (rawVal) => {
+          const numeric = parseInt(String(rawVal).replace(/[^0-9]/g, ''), 10) || 0;
+          state.claimAmount = numeric;
+          inp.value = formatNumber(numeric);
+          document.getElementById('formatted-amt-preview').textContent = `금 ${formatNumber(numeric)}원`;
+          const box = document.getElementById('amt-validation-box');
+          const msg = document.getElementById('amt-limit-msg');
+          if (numeric > 30000000) {
+            box.className = 'p-3 rounded-xl border text-xs bg-rose-50 border-rose-300 text-rose-800';
+            msg.textContent = '⚠️ 30,000,000원을 초과하면 소액사건(가소)이 아닌 민사 제1심 단독사건(가단)으로 분류됩니다. 3,000만원 이하로 입력하는 것을 권장합니다.';
+          } else {
+            box.className = 'p-3 rounded-xl border text-xs bg-slate-50 border-slate-200 text-slate-700';
+            msg.textContent = '✓ 3,000만원 이하 소액사건 범위 내에 해당합니다.';
+          }
+          syncA4Document();
+        };
+        inp.addEventListener('input', e => updateAmt(e.target.value));
+        stage.querySelectorAll('.quick-amt-btn').forEach(b => {
+          b.addEventListener('click', () => updateAmt(b.getAttribute('data-amt')));
+        });
+      }
+
+      else if (state.currentStep === 5) {
+        stage.innerHTML = `
+          <div class="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3.5 text-xs text-indigo-900">
+            피고에게 청구하는 금액의 법률적 성격을 선택해 주세요. 선택하신 성격은 <strong>사건명(예: 대여금 청구의 소)</strong>과 <strong>청구원인</strong>의 민법 조문 키워드로 자동 조합됩니다.
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            ${CLAIM_NATURES.map(item => {
+              const selected = state.claimNature === item.key;
+              return `
+                <button type="button" data-nature="${item.key}" data-law="${item.law}" class="nature-card text-left p-3 rounded-xl border transition ${selected ? 'border-indigo-600 bg-indigo-50/80 ring-2 ring-indigo-500/20' : 'border-slate-200 hover:border-slate-300 bg-white'}">
+                  <div class="flex items-center justify-between">
+                    <span class="font-bold text-sm text-slate-900">${item.key}</span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">${item.law.split('(')[0]}</span>
+                  </div>
+                  <p class="text-[11px] text-slate-600 mt-1">${item.desc}</p>
+                </button>
+              `;
+            }).join('')}
+          </div>
+          <div class="pt-2">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">기타 청구 성격 직접 입력 (선택)</label>
+            <input id="inp-custom-nature" type="text" value="${state.claimNatureCustom}" placeholder="위 목록 외 청구권원 직접 기입 (예: 물품대금, 투자약정반환금 등)" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
+          </div>
+        `;
+        stage.querySelectorAll('.nature-card').forEach(card => {
+          card.addEventListener('click', () => {
+            state.claimNature = card.getAttribute('data-nature');
+            state.claimLawArticle = card.getAttribute('data-law');
+            state.claimNatureCustom = '';
+            syncA4Document();
+            renderCurrentQuestion();
+          });
+        });
+        document.getElementById('inp-custom-nature').addEventListener('input', e => {
+          state.claimNatureCustom = e.target.value;
+          if (e.target.value.trim()) {
+            state.claimNature = '직접입력';
+            state.claimLawArticle = '민법 제390조(채무불이행)';
+          }
+          syncA4Document();
+        });
+      }
+
+      else if (state.currentStep === 6) {
+        stage.innerHTML = `
+          <div class="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3.5 text-xs text-indigo-900">
+            피고가 금액을 갚기로 약속한 <strong>변제기(이행기) 날짜</strong>를 직접 기입해 주세요. 변제기 다음 날부터 이행지체 책임(지연손해금)이 발생합니다.
+          </div>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">금전 지급일 / 계약 체결일 (선택 기입 - 청구원인 반영)</label>
+              <input id="inp-contract-date" type="date" value="${state.loanOrContractDate}" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">금액을 변제하기로 한 날짜 (변제기 직접 기입) <span class="text-rose-500">*</span></label>
+              <input id="inp-due-date" type="date" value="${state.dueDate}" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold">
+            </div>
+            <div class="bg-slate-50 rounded-xl p-3.5 border border-slate-200 text-xs space-y-1">
+              <div>• 소장 표기 변제기: <strong id="due-preview-kr" class="text-indigo-700">${formatKoreanDate(state.dueDate)}</strong></div>
+              <div>• 지체 기산일(변제기 다음 날): <strong id="due-next-preview-kr" class="text-slate-800">${getNextDayFormatted(state.dueDate)}</strong></div>
+            </div>
+          </div>
+        `;
+        document.getElementById('inp-contract-date').addEventListener('input', e => {
+          state.loanOrContractDate = e.target.value;
+          state.interestStartDate = e.target.value;
+          syncA4Document();
+        });
+        document.getElementById('inp-due-date').addEventListener('input', e => {
+          state.dueDate = e.target.value;
+          document.getElementById('due-preview-kr').textContent = formatKoreanDate(state.dueDate);
+          document.getElementById('due-next-preview-kr').textContent = getNextDayFormatted(state.dueDate);
+          syncA4Document();
+        });
+      }
+
+      else if (state.currentStep === 7) {
+        stage.innerHTML = `
+          <div class="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3.5 text-xs text-indigo-900">
+            당사자 사이에 <strong>약정한 이자율(연 백분율, %)</strong>을 입력해 주세요. 「이자제한법」상 최고이자율은 연 20%입니다.
+          </div>
+          <div class="space-y-4">
+            <div class="flex gap-2">
+              <button type="button" id="btn-interest-yes" class="flex-1 py-2.5 px-3 rounded-xl border text-xs font-semibold transition ${state.hasAgreedInterest ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-300'}">
+                약정 이자 있음
+              </button>
+              <button type="button" id="btn-interest-no" class="flex-1 py-2.5 px-3 rounded-xl border text-xs font-semibold transition ${!state.hasAgreedInterest ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-300'}">
+                약정 이자 없음 (무이자 약정)
+              </button>
+            </div>
+
+            <div id="interest-rate-wrap" class="${state.hasAgreedInterest ? 'space-y-3' : 'opacity-40 pointer-events-none space-y-3'}">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">약정한 이자율 (연 백분율 %)</label>
+                <div class="flex items-center rounded-xl border border-slate-300 overflow-hidden bg-white">
+                  <span class="px-3.5 py-2.5 bg-slate-100 text-xs font-semibold text-slate-600 border-r border-slate-300">연</span>
+                  <input id="inp-agreed-interest" type="number" step="0.1" min="0" max="20" value="${state.agreedInterestRate}" class="flex-1 px-4 py-2.5 text-right font-bold text-base focus:outline-none">
+                  <span class="px-4 py-2.5 bg-slate-100 text-sm font-bold text-slate-700 border-l border-slate-300">%</span>
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">약정이자 기산일</label>
+                <input id="inp-interest-start" type="date" value="${state.interestStartDate}" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
+              </div>
+            </div>
+          </div>
+        `;
+        document.getElementById('btn-interest-yes').addEventListener('click', () => {
+          state.hasAgreedInterest = true;
+          syncA4Document();
+          renderCurrentQuestion();
+        });
+        document.getElementById('btn-interest-no').addEventListener('click', () => {
+          state.hasAgreedInterest = false;
+          state.agreedInterestRate = '0';
+          syncA4Document();
+          renderCurrentQuestion();
+        });
+        document.getElementById('inp-agreed-interest').addEventListener('input', e => {
+          state.agreedInterestRate = e.target.value;
+          syncA4Document();
+        });
+        document.getElementById('inp-interest-start').addEventListener('input', e => {
+          state.interestStartDate = e.target.value;
+          syncA4Document();
+        });
+      }
+
+      else if (state.currentStep === 8) {
+        stage.innerHTML = `
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-950 space-y-1">
+            <div class="font-bold">변제기가 지났을 경우 약정한 지연손해금률 (백분율 %)</div>
+            <p><strong>[질문 8에 대한 분기 1]</strong> 지연손해금에 대한 약정이 없을 경우 아래 <strong>[없음 (특례법 연 12% 고정)]</strong> 버튼을 클릭하면 「소송촉진 등에 관한 특례법」에 의해 지연손해금이 <strong>연 12%</strong>로 자동 고정됩니다.</p>
+          </div>
+
+          <div class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button id="btn-delay-none" type="button" class="p-3.5 rounded-xl border-2 text-left transition ${!state.hasAgreedDelayRate ? 'border-amber-500 bg-amber-50/90 ring-2 ring-amber-400/30' : 'border-slate-200 bg-white hover:border-slate-300'}">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-sm text-slate-900">없음 (지연손해금 약정 없음)</span>
+                  <span class="px-2 py-0.5 rounded bg-amber-500 text-slate-950 text-[11px] font-bold">12% 고정</span>
+                </div>
+                <p class="text-[11px] text-slate-600 mt-1">소송촉진 등에 관한 특례법 제3조제1항에 따라 소장부본 송달 다음 날부터 <strong>연 12%</strong>로 고정</p>
+              </button>
+
+              <button id="btn-delay-custom" type="button" class="p-3.5 rounded-xl border-2 text-left transition ${state.hasAgreedDelayRate ? 'border-indigo-600 bg-indigo-50/90 ring-2 ring-indigo-500/20' : 'border-slate-200 bg-white hover:border-slate-300'}">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-sm text-slate-900">약정한 지연손해금 있음</span>
+                  <span class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[11px] font-semibold">직접 입력</span>
+                </div>
+                <p class="text-[11px] text-slate-600 mt-1">차용증·계약서상 변제기 도과 후 적용하기로 한 연 지연이율(%) 기입</p>
+              </button>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">적용 지연손해금률 (백분율 %)</label>
+              <div class="flex items-center rounded-xl border border-slate-300 overflow-hidden ${!state.hasAgreedDelayRate ? 'bg-slate-100' : 'bg-white'}">
+                <span class="px-3.5 py-2.5 bg-slate-100 text-xs font-semibold text-slate-600 border-r border-slate-300">연</span>
+                <input id="inp-delay-rate" type="number" step="0.1" min="0" max="20" value="${state.hasAgreedDelayRate ? state.agreedDelayRate : '12'}" ${!state.hasAgreedDelayRate ? 'readonly' : ''} class="flex-1 px-4 py-2.5 text-right font-bold text-base focus:outline-none ${!state.hasAgreedDelayRate ? 'bg-slate-100 text-amber-800' : 'bg-white text-slate-900'}">
+                <span class="px-4 py-2.5 bg-slate-100 text-sm font-bold text-slate-700 border-l border-slate-300">%</span>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-1.5">
+                ${!state.hasAgreedDelayRate
+                  ? '✓ 현재 「소송촉진 등에 관한 특례법」에 의해 지연손해금이 연 12%로 고정되어 있습니다.'
+                  : '✓ 당사자 간 약정한 지연손해금률이 청구취지에 반영됩니다.'}
+              </p>
+            </div>
+          </div>
+        `;
+        document.getElementById('btn-delay-none').addEventListener('click', () => {
+          state.hasAgreedDelayRate = false;
+          state.agreedDelayRate = '12';
+          syncA4Document();
+          renderCurrentQuestion();
+        });
+        document.getElementById('btn-delay-custom').addEventListener('click', () => {
+          state.hasAgreedDelayRate = true;
+          if (!state.agreedDelayRate) state.agreedDelayRate = '15';
+          syncA4Document();
+          renderCurrentQuestion();
+        });
+        document.getElementById('inp-delay-rate').addEventListener('input', e => {
+          if (state.hasAgreedDelayRate) {
+            state.agreedDelayRate = e.target.value;
+            syncA4Document();
+          }
+        });
+      }
+
+      else if (state.currentStep === 9) {
+        if (!state.purportManualEdit) {
+          state.customPurportText = buildAutoClaimPurport();
+        }
+        stage.innerHTML = `
+          <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-3.5 text-xs text-indigo-950 space-y-1">
+            <div class="font-bold">(질문 8에 대한 분기 2) 질문 4 ~ 질문 8 종합 청구취지 확인 및 직접 수정</div>
+            <p>질문 4(청구금액)부터 질문 8(지연손해금)까지의 답변을 종합하여 완성된 <strong>청구취지</strong>입니다. 내용을 직접 수정하실 수 있으며, 아래 <strong>[청구취지 내용 확인 완료]</strong> 버튼을 누르시면 다음 질문으로 넘어갈 수 있습니다.</p>
+          </div>
+
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-semibold text-slate-700">청구취지 문안 (직접 수정 가능)</label>
+              <button id="btn-reset-purport" type="button" class="text-[11px] px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300">
+                🔄 질문 4~8 기준으로 다시 자동생성
+              </button>
+            </div>
+            <textarea id="txt-claim-purport" rows="6" class="w-full p-3.5 rounded-xl border border-slate-300 text-sm font-shinmyeongjo leading-relaxed focus:ring-2 focus:ring-indigo-500 focus:outline-none">${state.customPurportText}</textarea>
+
+            <button id="btn-confirm-purport" type="button" class="w-full py-3 px-4 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 ${state.purportConfirmed ? 'bg-emerald-600 text-white shadow-sm' : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow'}">
+              <span>${state.purportConfirmed ? '✓ 청구취지 확인이 완료되었습니다 (다음 단계 이동 가능)' : '👉 여기를 눌러 청구취지 내용을 확인(승인)해 주세요'}</span>
+            </button>
+          </div>
+        `;
+        document.getElementById('txt-claim-purport').addEventListener('input', e => {
+          state.purportManualEdit = true;
+          state.customPurportText = e.target.value;
+          syncA4Document();
+        });
+        document.getElementById('btn-reset-purport').addEventListener('click', () => {
+          state.purportManualEdit = false;
+          state.customPurportText = buildAutoClaimPurport();
+          syncA4Document();
+          renderCurrentQuestion();
+        });
+        document.getElementById('btn-confirm-purport').addEventListener('click', () => {
+          state.purportConfirmed = true;
+          renderCurrentQuestion();
+        });
+      }
+
+      else if (state.currentStep === 10) {
+        if (!state.claimCauseManuallyEdited) {
+          state.claimCauseText = buildAutoClaimCause();
+        }
+        stage.innerHTML = `
+          <div class="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3.5 text-xs text-indigo-900">
+            앞서 답변하신 키워드(당사자, 청구성격, 청구금액, 변제기, 약정이율 및 지연손해금)를 조합하여 <strong>청구원인 초안</strong>을 구성했습니다. 구체적인 사실관계를 자유롭게 덧붙이거나 수정하실 수 있습니다.
+          </div>
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-semibold text-slate-700">청구원인 작성란 (소장 2쪽 반영)</label>
+              <button id="btn-regen-cause" type="button" class="text-[11px] px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300">
+                ✨ 답변 키워드로 청구원인 자동 재조합
+              </button>
+            </div>
+            <textarea id="txt-claim-cause" rows="7" class="w-full p-3.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-shinmyeongjo leading-relaxed focus:ring-2 focus:ring-indigo-500 focus:outline-none">${state.claimCauseText}</textarea>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">입증방법 (갑 호증 목록)</label>
+              <textarea id="txt-evidence" rows="3" class="w-full p-3 rounded-xl border border-slate-300 text-xs font-shinmyeongjo leading-relaxed focus:ring-2 focus:ring-indigo-500 focus:outline-none">${state.evidenceText}</textarea>
+            </div>
+          </div>
+        `;
+        document.getElementById('txt-claim-cause').addEventListener('input', e => {
+          state.claimCauseManuallyEdited = true;
+          state.claimCauseText = e.target.value;
+          syncA4Document();
+        });
+        document.getElementById('btn-regen-cause').addEventListener('click', () => {
+          state.claimCauseManuallyEdited = false;
+          state.claimCauseText = buildAutoClaimCause();
+          syncA4Document();
+          renderCurrentQuestion();
+        });
+        document.getElementById('txt-evidence').addEventListener('input', e => {
+          state.evidenceText = e.target.value;
+          syncA4Document();
+        });
+      }
+
+      else if (state.currentStep === 11) {
+        const paperStamp = calculateStampFee(state.claimAmount, false);
+        const elecStamp = calculateStampFee(state.claimAmount, true);
+        const activeStamp = state.isElectronicFiling ? elecStamp : paperStamp;
+        const deliveryFee = calculateDeliveryFee();
+        const isUnder10M = state.claimAmount < 10000000;
+
+        stage.innerHTML = `
+          <div class="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3.5 text-xs text-indigo-900">
+            「민사소송 등 인지법」 제2조 및 「민사소송 등 인지규칙」, 대법원 「송달료규칙」에 따라 청구금액(<strong>금 ${formatNumber(state.claimAmount)}원</strong>)을 기준으로 자동 계산된 소송비용입니다.
+          </div>
+
+          <div class="space-y-3.5">
+            <!-- 계산 결과 요약 카드 -->
+            <div class="grid grid-cols-2 gap-3">
+              <div class="p-3.5 rounded-xl bg-slate-900 text-white">
+                <div class="text-[11px] text-slate-400">소송인지액 (${state.isElectronicFiling ? '전자소송 10%할인' : '종이소장 기준'})</div>
+                <div class="text-lg font-bold text-amber-300 mt-0.5">금 ${formatNumber(activeStamp)}원</div>
+                <div class="text-[10px] text-slate-300 mt-1">
+                  ${isUnder10M
+                    ? '산식: 소가 × 0.5% (1만분의 50)'
+                    : '산식: 소가 × 0.45% + 5,000원'}
+                  (1천원 미만시 1천원, 100원 미만 절사)
+                </div>
+              </div>
+              <div class="p-3.5 rounded-xl bg-slate-900 text-white">
+                <div class="text-[11px] text-slate-400">예납 송달료 (소액 10회분)</div>
+                <div class="text-lg font-bold text-emerald-300 mt-0.5">금 ${formatNumber(deliveryFee)}원</div>
+                <div class="text-[10px] text-slate-300 mt-1">
+                  산식: 당사자 ${state.partyCount}인 × 10회분 × ${formatNumber(state.unitDeliveryFee)}원
+                </div>
+              </div>
+            </div>
+
+            <!-- 옵션 선택 -->
+            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5 text-xs">
+              <div class="flex items-center justify-between">
+                <span class="font-semibold text-slate-700">제출 방식에 따른 인지액 기준</span>
+                <div class="flex gap-1.5">
+                  <button type="button" id="btn-paper-stamp" class="px-2.5 py-1 rounded border ${!state.isElectronicFiling ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300'}">
+                    서면접수 (${formatNumber(paperStamp)}원)
+                  </button>
+                  <button type="button" id="btn-elec-stamp" class="px-2.5 py-1 rounded border ${state.isElectronicFiling ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300'}">
+                    전자소송 (${formatNumber(elecStamp)}원)
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between pt-2 border-t border-slate-200">
+                <span class="font-semibold text-slate-700">1회 송달료 단가 기준</span>
+                <div class="flex gap-1.5">
+                  <button type="button" data-unit="5640" class="unit-fee-btn px-2.5 py-1 rounded border ${state.unitDeliveryFee === 5640 ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-300'}">
+                    5,640원 (현행 기준)
+                  </button>
+                  <button type="button" data-unit="5500" class="unit-fee-btn px-2.5 py-1 rounded border ${state.unitDeliveryFee === 5500 ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-300'}">
+                    5,500원 (종전 기준)
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950">
+              합계 납부할 초기 소송비용: <strong>금 ${formatNumber(activeStamp + deliveryFee)}원</strong> (소장 1쪽 상단 표 및 4·5쪽 별지 납부서에 자동 기입됨)
+            </div>
+          </div>
+        `;
+        document.getElementById('btn-paper-stamp').addEventListener('click', () => {
+          state.isElectronicFiling = false;
+          syncA4Document();
+          renderCurrentQuestion();
+        });
+        document.getElementById('btn-elec-stamp').addEventListener('click', () => {
+          state.isElectronicFiling = true;
+          syncA4Document();
+          renderCurrentQuestion();
+        });
+        stage.querySelectorAll('.unit-fee-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            state.unitDeliveryFee = parseInt(btn.getAttribute('data-unit'), 10);
+            syncA4Document();
+            renderCurrentQuestion();
+          });
+        });
+      }
+
+      else if (state.currentStep === 12) {
+        const pCourt = detectCourtFromAddress(state.plaintiffAddress);
+        const dCourt = detectCourtFromAddress(state.defendantAddress);
+
+        stage.innerHTML = `
+          <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 text-xs text-emerald-950 space-y-1">
+            <div class="font-bold">민사소송법 참조 관할 법원 자동 탐색 및 「관할 법원 귀중」 맺음말 완성</div>
+            <p>민사소송법 제2조·제3조(보통재판적: 피고 주소지) 및 제8조(거소지 또는 의무이행지 특별재판적: 금전채무 지참채무 원칙상 채권자인 원고 주소지)에 따라 산출된 관할 법원입니다.</p>
+          </div>
+
+          <div class="space-y-3.5">
+            <div class="grid grid-cols-1 gap-2.5">
+              <button type="button" id="btn-jur-plaintiff" class="p-3.5 rounded-xl border-2 text-left transition ${state.jurisdictionBasis === 'property_duty' ? 'border-indigo-600 bg-indigo-50/90 ring-2 ring-indigo-500/20' : 'border-slate-200 bg-white'}">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-sm text-slate-900">① 의무이행지 관할 (원고 주소지 기준 · 권장)</span>
+                  <span class="px-2 py-0.5 rounded bg-indigo-600 text-white text-xs font-bold">${pCourt} 귀중</span>
+                </div>
+                <p class="text-[11px] text-slate-600 mt-1">민사소송법 제8조 · 민법 제467조제2항(지참채무 원칙)에 따라 금전채권자인 원고 주소지 관할 법원에 소 제기 가능</p>
+              </button>
+
+              <button type="button" id="btn-jur-defendant" class="p-3.5 rounded-xl border-2 text-left transition ${state.jurisdictionBasis === 'defendant_addr' ? 'border-indigo-600 bg-indigo-50/90 ring-2 ring-indigo-500/20' : 'border-slate-200 bg-white'}">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-sm text-slate-900">② 보통재판적 관할 (피고 주소지 기준)</span>
+                  <span class="px-2 py-0.5 rounded bg-slate-800 text-white text-xs font-bold">${dCourt} 귀중</span>
+                </div>
+                <p class="text-[11px] text-slate-600 mt-1">민사소송법 제2조·제3조에 따라 피고의 도로명 주소지 관할 법원에 소 제기</p>
+              </button>
+            </div>
+
+            <div class="bg-slate-900 text-white rounded-xl p-4 flex items-center justify-between">
+              <div>
+                <div class="text-[11px] text-slate-400">소장 2쪽 하단 맺음말 자동 기재</div>
+                <div class="text-lg font-bold font-humanmyeongjo text-amber-300 mt-0.5">${state.competentCourt} 귀중</div>
+              </div>
+              <button id="btn-download-pdf-final" type="button" class="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow transition">
+                📥 A4 소장 PDF 내려받기
+              </button>
+            </div>
+          </div>
+        `;
+        document.getElementById('btn-jur-plaintiff').addEventListener('click', () => {
+          state.jurisdictionBasis = 'property_duty';
+          syncA4Document();
+          renderCurrentQuestion();
+        });
+        document.getElementById('btn-jur-defendant').addEventListener('click', () => {
+          state.jurisdictionBasis = 'defendant_addr';
+          syncA4Document();
+          renderCurrentQuestion();
+        });
+        document.getElementById('btn-download-pdf-final').addEventListener('click', downloadComplaintPdf);
+      }
+    }
+
+    // ============================================================================
+    // 5. 네비게이션 및 분기 조건 검증 (질문 3 분기1 경고 팝업, 질문 9 확인 버튼 등)
+    // ============================================================================
+    function showDefendantWarningModal() {
+      const missing = getMissingDefendantFieldsList();
+      document.getElementById('missing-defendant-fields').textContent =
+        missing.length > 0 ? missing.join(', ') : '피고 인적사항 일부';
+      const modal = document.getElementById('defendant-warning-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function hideDefendantWarningModal() {
+      const modal = document.getElementById('defendant-warning-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function tryNavigateToStep(targetStep) {
+      if (targetStep < 1 || targetStep > state.totalSteps) return;
+
+      // 질문 3에서 다음 단계로 넘어갈 때 분기1 검증: 피고 이름, 주민번호, 도로명 주소 중 하나라도 미충족 시 경고 팝업
+      if (state.currentStep === 3 && targetStep > 3 && !isDefendantFullySpecified() && !state.defendantIncompleteWarned) {
+        showDefendantWarningModal();
+        return;
+      }
+
+      // 질문 9에서 확인 버튼을 아직 누르지 않고 다음으로 갈 경우 자동 확인 유도
+      if (state.currentStep === 9 && targetStep > 9 && !state.purportConfirmed) {
+        state.purportConfirmed = true;
+      }
+
+      state.currentStep = targetStep;
+      syncA4Document();
+      renderCurrentQuestion();
+    }
+
+    // ============================================================================
+    // 6. 네이버 지도 기준 도로명 주소 선택 모달 제어
+    // ============================================================================
+    let currentRoadTarget = 'plaintiff';
+
+    function openNaverRoadModal(targetParty) {
+      currentRoadTarget = targetParty;
+      const modal = document.getElementById('naver-road-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.getElementById('road-search-input').value = '';
+      renderRoadPresets('');
+    }
+
+    function closeNaverRoadModal() {
+      const modal = document.getElementById('naver-road-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function renderRoadPresets(query) {
+      const list = document.getElementById('road-preset-list');
+      const q = (query || '').trim();
+      const filtered = ROAD_ADDRESS_PRESETS.filter(item =>
+        !q || item.region.includes(q) || item.road.includes(q) || item.court.includes(q)
+      );
+
+      list.innerHTML = filtered.map((item, idx) => `
+        <button type="button" data-road-idx="${idx}" class="road-item-btn w-full text-left px-3.5 py-2.5 hover:bg-emerald-50 transition flex items-center justify-between gap-2">
+          <div>
+            <div class="text-xs font-bold text-slate-900">${item.road}</div>
+            <div class="text-[11px] text-slate-500">${item.region} · 관할: ${item.court}</div>
+          </div>
+          <span class="text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-800 font-semibold whitespace-nowrap">선택</span>
+        </button>
+      `).join('');
+
+      list.querySelectorAll('.road-item-btn').forEach((btn, idx) => {
+        btn.addEventListener('click', () => {
+          const chosen = filtered[idx];
+          if (currentRoadTarget === 'plaintiff') {
+            state.plaintiffAddress = chosen.road;
+          } else {
+            state.defendantAddress = chosen.road;
+          }
+          closeNaverRoadModal();
+          syncA4Document();
+          renderCurrentQuestion();
+        });
+      });
+    }
+
+    // ============================================================================
+    // 7. A4 PDF 파일 내려받기 (html2pdf.js + 브라우저 인쇄 폴백 지원)
+    // ============================================================================
+    async function downloadComplaintPdf() {
+      // 모든 페이지(1~5쪽)가 보이도록 탭 필터를 전체로 전환
+      setPageFilter('all');
+      syncA4Document();
+
+      const btnTop = document.getElementById('btn-download-pdf-top');
+      const originalText = btnTop.innerHTML;
+      btnTop.innerHTML = '<span>⏳</span> PDF 생성 중...';
+      btnTop.disabled = true;
+
+      try {
+        const element = document.getElementById('print-area-wrapper');
+        const filename = `소장_${getActiveNatureName()}_${state.plaintiffName || '원고'}.pdf`;
+
+        if (typeof html2pdf !== 'undefined') {
+          const opt = {
+            margin: 0,
+            filename: filename,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true, logging: false },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: ['css', 'legacy'] }
+          };
+          await html2pdf().set(opt).from(element).save();
+        } else {
+          window.print();
+        }
+      } catch (err) {
+        window.print();
+      } finally {
+        btnTop.innerHTML = originalText;
+        btnTop.disabled = false;
+      }
+    }
+
+    function setPageFilter(filterVal) {
+      document.querySelectorAll('.page-tab-btn').forEach(btn => {
+        const active = btn.getAttribute('data-page-filter') === filterVal;
+        btn.className = active
+          ? 'page-tab-btn text-xs px-2.5 py-1 rounded bg-amber-500 text-slate-950 font-semibold'
+          : 'page-tab-btn text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200';
+      });
+
+      const pages = [1, 2, 3, 4, 5];
+      pages.forEach(p => {
+        const el = document.getElementById(`a4-page-${p}`);
+        if (filterVal === 'all') {
+          el.classList.remove('hidden');
+        } else if (filterVal === '4') {
+          if (p === 4 || p === 5) el.classList.remove('hidden');
+          else el.classList.add('hidden');
+        } else {
+          if (String(p) === filterVal) el.classList.remove('hidden');
+          else el.classList.add('hidden');
+        }
+      });
+    }
+
+    // ============================================================================
+    // 8. 이벤트 바인딩 및 초기화
+    // ============================================================================
+    window.addEventListener('DOMContentLoaded', () => {
+      // 이전 / 다음 버튼
+      document.getElementById('btn-prev-step').addEventListener('click', () => {
+        if (state.currentStep > 1) {
+          tryNavigateToStep(state.currentStep - 1);
+        }
+      });
+
+      document.getElementById('btn-next-step').addEventListener('click', () => {
+        if (state.currentStep < state.totalSteps) {
+          tryNavigateToStep(state.currentStep + 1);
+        } else {
+          downloadComplaintPdf();
+        }
+      });
+
+      // 질문 3 경고 모달 버튼
+      document.getElementById('btn-modal-stay').addEventListener('click', () => {
+        hideDefendantWarningModal();
+      });
+
+      document.getElementById('btn-modal-proceed').addEventListener('click', () => {
+        state.defendantIncompleteWarned = true;
+        state.includeFactInquiryNote = true;
+        hideDefendantWarningModal();
+        state.currentStep = 4;
+        syncA4Document();
+        renderCurrentQuestion();
+      });
+
+      // 도로명 주소 모달 닫기 및 검색
+      document.getElementById('btn-close-road-modal').addEventListener('click', closeNaverRoadModal);
+      document.getElementById('btn-close-road-modal-bottom').addEventListener('click', closeNaverRoadModal);
+      document.getElementById('road-search-input').addEventListener('input', e => {
+        renderRoadPresets(e.target.value);
+      });
+
+      // 상단 PDF 다운로드 버튼
+      document.getElementById('btn-download-pdf-top').addEventListener('click', downloadComplaintPdf);
+
+      // 미리보기 확대 토글
+      let fullPreview = false;
+      document.getElementById('btn-toggle-preview-mode').addEventListener('click', e => {
+        fullPreview = !fullPreview;
+        const wiz = document.getElementById('wizard-panel');
+        const prev = document.getElementById('preview-panel');
+        if (fullPreview) {
+          wiz.classList.add('hidden');
+          prev.classList.remove('lg:col-span-7');
+          prev.classList.add('lg:col-span-12');
+          e.target.textContent = '질문 입력창 다시 열기';
+        } else {
+          wiz.classList.remove('hidden');
+          prev.classList.add('lg:col-span-7');
+          prev.classList.remove('lg:col-span-12');
+          e.target.textContent = '소장 A4 전체화면 미리보기';
+        }
+      });
+
+      // 전체 초기화 버튼
+      document.getElementById('btn-reset-all').addEventListener('click', () => {
+        state.currentStep = 1;
+        state.plaintiffName = '';
+        state.plaintiffRrnFront = '';
+        state.plaintiffRrnBack = '';
+        state.plaintiffPhone = '';
+        state.plaintiffAddress = '';
+        state.defendantName = '';
+        state.defendantRrnFront = '';
+        state.defendantRrnBack = '';
+        state.defendantAddress = '';
+        state.defendantPhone = '';
+        state.defendantIncompleteWarned = false;
+        state.includeFactInquiryNote = false;
+        state.defendant2Name = '';
+        state.defendant2RrnFront = '';
+        state.defendant2RrnBack = '';
+        state.defendant2Address = '';
+        state.defendant2Phone = '';
+        state.claimAmount = 0;
+        state.claimNature = '대여금';
+        state.claimNatureCustom = '';
+        state.claimLawArticle = '민법 제598조(소비대차)';
+        state.dueDate = '';
+        state.loanOrContractDate = '';
+        state.hasAgreedInterest = false;
+        state.agreedInterestRate = '0';
+        state.interestStartDate = '';
+        state.hasAgreedDelayRate = false;
+        state.agreedDelayRate = '12';
+        state.purportConfirmed = false;
+        state.purportManualEdit = false;
+        state.customPurportText = '';
+        state.claimCauseText = '';
+        state.claimCauseManuallyEdited = false;
+        state.evidenceText = '1. 갑 제1호증 차용증(또는 계약서)\n2. 갑 제2호증 계좌거래내역서(송금확인증)\n3. 갑 제3호증 내용증명 우편물 및 통화·문자메시지 내역';
+        state.isElectronicFiling = false;
+        state.partyCount = 2;
+        state.unitDeliveryFee = 5640;
+        state.jurisdictionBasis = 'property_duty';
+        syncA4Document();
+        renderCurrentQuestion();
+      });
+
+      // 예시 데이터 자동입력
+      document.getElementById('btn-fill-sample').addEventListener('click', () => {
+        state.plaintiffName = '김민수';
+        state.plaintiffRrnFront = '880512';
+        state.plaintiffRrnBack = '1234567';
+        state.plaintiffAddress = '경기도 성남시 분당구 불정로 6 (정자동)';
+        state.defendantName = '이준호';
+        state.defendantRrnFront = '851024';
+        state.defendantRrnBack = '1357924';
+        state.defendantAddress = '서울특별시 강남구 테헤란로 152 (역삼동)';
+        state.claimAmount = 15000000;
+        state.claimNature = '대여금';
+        state.claimLawArticle = '민법 제598조(소비대차)';
+        state.dueDate = '2026-06-30';
+        state.hasAgreedInterest = true;
+        state.agreedInterestRate = '5';
+        state.hasAgreedDelayRate = false;
+        state.agreedDelayRate = '12';
+        state.purportManualEdit = false;
+        state.claimCauseManuallyEdited = false;
+        syncA4Document();
+        renderCurrentQuestion();
+      });
+
+      // 우측 페이지 필터 버튼
+      document.querySelectorAll('.page-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          setPageFilter(btn.getAttribute('data-page-filter'));
+        });
+      });
+
+      syncA4Document();
+      renderCurrentQuestion();
+    });
+  </script>
+</body>
+</html>
